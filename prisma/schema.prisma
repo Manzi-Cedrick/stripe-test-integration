@@ -11,28 +11,60 @@ datasource db {
 }
 
 model User {
-  id       String  @id default(uuid()) @db.Uuid
+  id       String  @id @default(uuid()) @db.Uuid
   name     String?
   email    String  @unique
   password String
   role     Role    @default(USER)
 }
 
+model Address {
+  id          String     @id @default(uuid()) @db.Uuid
+  line1       String
+  city        String
+  postal_code String
+  state       String
+  country     String
+  Customer    Customer[]
+}
+
 model Customer {
-  id       String  @id default(uuid()) @db.Uuid
-  name     String
-  email    String  @unique
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  email       String      @unique
+  stripeId    String      @unique
   description String?
+  balance     Decimal
+  currency    String?
+  phone       String
+  address     Address     @relation(fields: [addressId], references: [id])
+  Charge      Charge[]
+  TokenCard   TokenCard[]
+  addressId   String      @db.Uuid
 }
 
 model Charge {
-  id        String @id default(uuid()) @db.Uuid
-  stripe_customer_id String @id default(uuid()) @db.Uuid
-  stripe_card String
-  amount      Decimal
-  currency    String
-  receipt_email String
-  description String
+  id                 String   @id @default(uuid()) @db.Uuid
+  stripe_customer_id String   @db.Uuid
+  stripe_card        String
+  amount             Decimal
+  currency           String
+  receipt_email      String
+  description        String
+  account            String
+  destination_amount Decimal
+  customer           Customer @relation(fields: [stripe_customer_id], references: [id])
+}
+
+model TokenCard {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  number      String
+  exp_month   Int
+  exp_year    Int
+  cvc         String
+  customer_id String   @db.Uuid
+  customer    Customer @relation(fields: [customer_id], references: [id])
 }
 
 enum Role {
