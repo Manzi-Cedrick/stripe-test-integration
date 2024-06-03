@@ -24,6 +24,7 @@ export class UserController {
 
   @Post()
   async signupUser(@Body() payload: CreateUserDto): Promise<IUser> {
+    console.log('payload', payload)
     const existingUser = await this.userService.findOne({
       email: payload.email,
     });
@@ -31,7 +32,9 @@ export class UserController {
       throw new BadRequestException();
     }
     if (payload.role !== Role.USER) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException(
+        'Only users can be created using this endpoint',
+      );
     }
     return await this.userService.createUser(payload);
   }
@@ -43,7 +46,7 @@ export class UserController {
     @Body() body: UpdateUserDto,
   ): Promise<IUser> {
     const user = await this.userService.findOne({
-      id: Number(body.id),
+      id: String(body.id),
     });
     if (!user) {
       throw new NotFoundException();
@@ -57,7 +60,7 @@ export class UserController {
     }
     return await this.userService.updateUser({
       where: {
-        id: Number(body.id),
+        id: String(body.id),
       },
       data: body,
     });
@@ -68,7 +71,7 @@ export class UserController {
   @Get('/:id')
   async getUserById(@Param('id') id: string): Promise<IUser> {
     const user = await this.userService.findOne({
-      id: Number(id),
+      id: String(id),
     });
     if (!user) {
       throw new NotFoundException();
