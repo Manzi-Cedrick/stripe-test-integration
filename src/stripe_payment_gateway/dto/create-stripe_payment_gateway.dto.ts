@@ -1,21 +1,34 @@
-import { IsNumber, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+class DestinationDto {
+    @IsString()
+    account: string;
 
+    @IsNumber()
+    amount: number;
+}
+
+class TransferDataDto {
+    @IsString()
+    destination: string;
+
+    @IsNumber()
+    amount: number;
+}
 export class CreateStripeChargeDto {
     @IsString()
     @IsOptional()
-    stripe_customer_id?: string;
+    id?: string;
 
     @IsString()
     @IsOptional()
-    stripe_card?: string;
+    customer?: string;
 
     @IsString()
-    @IsOptional()
-    amount?: string;
+    amount: number;
 
     @IsString()
-    @IsOptional()
-    currency?: string;
+    currency: string;
 
     @IsString()
     @IsOptional()
@@ -24,9 +37,23 @@ export class CreateStripeChargeDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @ValidateNested()
+    @Type(() => DestinationDto)
+    @IsOptional()
+    destination?: DestinationDto;
+
+    @ValidateNested()
+    @Type(() => TransferDataDto)
+    @IsOptional()
+    transfer_data?: TransferDataDto;
 }
 
 export class CreateStripeCustomerDto {
+    @IsString()
+    @IsOptional()
+    id?: string;
+
     @IsString()
     @IsOptional()
     email?: string;
@@ -38,6 +65,13 @@ export class CreateStripeCustomerDto {
     @IsString()
     @IsOptional()
     description?: string;
+
+    @IsString()
+    @IsOptional()
+    phone?: string;
+
+    @IsOptional()
+    address: IAddress
 }
 
 export class CreateStripeTokenCardDto {
