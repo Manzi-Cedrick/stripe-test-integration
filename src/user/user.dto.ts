@@ -18,8 +18,8 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
-  @IsNumber()
-  id: number;
+  @IsString()
+  id: string;
 
   @IsString()
   @IsOptional()
