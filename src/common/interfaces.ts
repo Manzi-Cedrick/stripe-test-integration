@@ -6,7 +6,7 @@ interface IAddress {
     country: string
 }
 interface IDestination {
-    account: string; // stripe account id
+    account: string;
     amount: number;
 }
 
@@ -33,3 +33,40 @@ interface IShipping {
     phone: string;
     tracking_number: string;
 }
+
+type PaymentMethodType =
+    | 'acss_debit'
+    | 'affirm'
+    | 'afterpay_clearpay'
+    | 'alipay'
+    | 'amazon_pay'
+    | 'au_becs_debit'
+    | 'bacs_debit'
+    | 'bancontact'
+    | 'blik'
+    | 'boleto'
+    | 'card'
+    | 'cashapp'
+    | 'customer_balance'
+    | 'eps'
+    | 'fpx'
+    | 'giropay'
+    | 'grabpay'
+    | 'ideal'
+    | 'klarna'
+    | 'konbini'
+    | 'link'
+    | 'mobilepay'
+    | 'oxxo'
+    | 'p24'
+    | 'paynow'
+    | 'paypal'
+    | 'pix'
+    | 'promptpay'
+    | 'revolut_pay'
+    | 'sepa_debit'
+    | 'sofort'
+    | 'swish'
+    | 'us_bank_account'
+    | 'wechat_pay'
+    | 'zip';

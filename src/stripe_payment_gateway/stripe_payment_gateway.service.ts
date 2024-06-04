@@ -1,9 +1,9 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { CreateStripeChargeDto, CreateStripeCustomerDto } from './dto/create-stripe_payment_gateway.dto';
+import { CreateStripeChargeDto, CreateStripeCustomerDto, CreateStripeCardTokenPaymentMethodDto } from './dto/create-stripe_payment_gateway.dto';
 import Stripe from 'stripe';
 import { UpdateStripeCustomerDto } from './dto/update-stripe_payment_gateway.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { Charge, Customer, Prisma } from '@prisma/client'
+import { Charge, Customer, Prisma, TokenCard } from '@prisma/client'
 
 @Injectable()
 export class StripePaymentGatewayService {
@@ -176,15 +176,42 @@ export class StripePaymentGatewayService {
     }
   }
 
-  async createCharge(createStripeChargeDto: CreateStripeChargeDto)  {
+  async createCharge(createStripeChargeDto: CreateStripeChargeDto) {
     try {
-      const data = await this.stripe.charges.create(createStripeChargeDto);
-      console.log(data)
-      // return {
-      //   body: data,
-      //   message: 'Charge created successfully',
-      //   status: 201
-      // };
+      const paymentIntent = await this.stripe.paymentIntents.create(createStripeChargeDto);
+      const paymentMethod = await this.stripe.paymentMethods.create(
+        {
+          type: 'card',
+          card: {
+            number: '4242424242424242',
+            exp_month: 12,
+            exp_year: 2022,
+            cvc: '123'
+          }
+        }
+      );
+
+      const confirmCharge = await this.stripe.paymentIntents.confirm(paymentIntent.id, {
+        payment_method: paymentMethod.id
+      });
+
+      const { id, amount, currency, customer, description, receipt_email } = confirmCharge;
+      const charge = await this.prisma.charge.create({
+        data: {
+          id,
+          amount,
+          currency,
+          stripe_customer_id: customer.toString(),
+          description,
+          receipt_email,         
+        }
+      });
+
+      return {
+        body: charge,
+        message: 'Charge created successfully',
+        status: 201
+      };
     } catch (error) {
       if (error instanceof Stripe.errors.StripeAPIError) {
         throw new Error(error.message);
@@ -194,5 +221,213 @@ export class StripePaymentGatewayService {
     }
   }
 
+  async findAllCharges(): Promise<ServiceAPIResponse<Charge[]>> {
+    try {
+      const charges = await this.prisma.charge.findMany();
+      return {
+        body: charges,
+        message: 'Charges retrieved successfully',
+        status: 200
+      };
+    } catch (error) {
+      throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
 
-}
+  async findOneCharge(id: string): Promise<ServiceAPIResponse<Charge>> {
+    try {
+      const charge = await this.prisma.charge.findUnique({
+        where: {
+          id: id
+        }
+      });
+      if (!charge) {
+        throw new HttpException('Charge not found', HttpStatus.NOT_FOUND);
+      }
+      return {
+        body: charge,
+        message: 'Charge retrieved successfully',
+        status: 200
+      };
+    } catch (error) {
+      throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async removeCharge(id: string) {
+    try {
+      await this.stripe.charges.del(id);
+      await this.prisma.charge.delete({
+        where: {
+          id: id
+        }
+      });
+      return {
+        message: 'Charge deleted successfully',
+        status: 200
+      };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeAPIError) {
+        throw new Error(error.message);
+      } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2025':
+            throw new HttpException('Charge not found', HttpStatus.NOT_FOUND);
+          default:
+            throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+      } else {
+        throw new HttpException('An unexpected error ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+  async refundCharge(chargeId: string) {
+    try {
+      const refund = await this.stripe.refunds.create({
+        charge: chargeId
+      });
+      return {
+        body: refund,
+        message: 'Charge refunded successfully',
+        status: 200
+      };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeAPIError) {
+        throw new Error(error.message);
+      } else {
+        throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+  async createCardTokenPaymentMethod(createPaymentMethodDto: CreateStripeCardTokenPaymentMethodDto) {
+    try {
+      const paymentMethod = await this.stripe.paymentMethods.create({
+        type: createPaymentMethodDto.type,
+        card: {
+          number: createPaymentMethodDto.card.number,
+          exp_month: createPaymentMethodDto.card.exp_month,
+          exp_year: createPaymentMethodDto.card.exp_year,
+          cvc: createPaymentMethodDto.card.cvc,
+        }
+      });
+      const { type, customer } = paymentMethod;
+      const { exp_month, exp_year, brand, fingerprint, funding } = paymentMethod.card
+      const { cvc_check } = paymentMethod.card.checks
+
+      const newPaymentMethod = await this.prisma.tokenCard.create({
+        data: {
+          number: paymentMethod.card.last4,
+          exp_month,
+          exp_year,
+          cvc: createPaymentMethodDto.card.cvc,
+          brand,
+          fingerprint,
+          funding,
+          cvc_check,
+          type,
+          customer_id: customer.toString()
+        }
+      });
+      return {
+        body: newPaymentMethod,
+        message: 'Payment method created successfully',
+        status: 201
+      };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeAPIError) {
+        throw new Error(error.message);
+      } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2002':
+            throw new HttpException('Payment method already exists', HttpStatus.CONFLICT);
+          default:
+            throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+      } else {
+        throw new HttpException('An unexpected error ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+  async findAllPaymentMethods(): Promise<ServiceAPIResponse<TokenCard[]>> {
+    try {
+      const paymentMethods = await this.prisma.tokenCard.findMany();
+      return {
+        body: paymentMethods,
+        message: 'Payment methods retrieved successfully',
+        status: 200
+      };
+    } catch (error) {
+      throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async findOnePaymentMethod(id: string): Promise<ServiceAPIResponse<TokenCard>> {
+    try {
+      const paymentMethod = await this.prisma.tokenCard.findUnique({
+        where: {
+          id: id
+        }
+      });
+      if (!paymentMethod) {
+        throw new HttpException('Payment method not found', HttpStatus.NOT_FOUND);
+      }
+      return {
+        body: paymentMethod,
+        message: 'Payment method retrieved successfully',
+        status: 200
+      };
+    } catch (error) {
+      throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async removePaymentMethod(id: string) {
+    try {
+      await this.stripe.paymentMethods.detach(id);
+      await this.prisma.tokenCard.delete({
+        where: {
+          id: id
+        }
+      });
+      return {
+        message: 'Payment method deleted successfully',
+        status: 200
+      };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeAPIError) {
+        throw new Error(error.message);
+      } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2025':
+            throw new HttpException('Payment method not found', HttpStatus.NOT_FOUND);
+          default:
+            throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+      } else {
+        throw new HttpException('An unexpected error ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+
+  async attachPaymentMethodToCustomer(paymentMethodId: string, customerId: string) {
+    try {
+      const paymentMethod = await this.stripe.paymentMethods.attach(paymentMethodId, {
+        customer: customerId
+      });
+      return {
+        body: paymentMethod,
+        message: 'Payment method attached to customer successfully',
+        status: 200
+      };
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeAPIError) {
+        throw new Error(error.message);
+      } else {
+        throw new HttpException('An error occurred ' + error, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+    }
+  }
+} 

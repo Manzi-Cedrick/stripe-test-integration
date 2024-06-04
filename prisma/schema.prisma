@@ -46,23 +46,24 @@ model Customer {
 model Charge {
   id                 String   @id @default(uuid()) @db.Uuid
   stripe_customer_id String   @db.Uuid
-  stripe_card        String
   amount             Decimal
   currency           String
   receipt_email      String
   description        String
-  account            String
-  destination_amount Decimal
   customer           Customer @relation(fields: [stripe_customer_id], references: [id])
 }
 
 model TokenCard {
   id          String   @id @default(uuid()) @db.Uuid
-  name        String
+  brand       String
+  fingerprint String
+  funding     String
+  type        String
   number      String
   exp_month   Int
   exp_year    Int
   cvc         String
+  cvc_check   String
   customer_id String   @db.Uuid
   customer    Customer @relation(fields: [customer_id], references: [id])
 }

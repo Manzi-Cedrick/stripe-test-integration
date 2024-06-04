@@ -1,5 +1,5 @@
-import { Type } from "class-transformer";
 import { IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { Type } from "class-transformer";
 class DestinationDto {
     @IsString()
     account: string;
@@ -21,10 +21,9 @@ export class CreateStripeChargeDto {
     id?: string;
 
     @IsString()
-    @IsOptional()
-    customer?: string;
+    customer: string;
 
-    @IsString()
+    @IsNumber()
     amount: number;
 
     @IsString()
@@ -74,28 +73,28 @@ export class CreateStripeCustomerDto {
     address: IAddress
 }
 
-export class CreateStripeTokenCardDto {
+class CardDto {
     @IsString()
-    @IsOptional()
-    name?: string;
-
-    @IsString()
-    @IsOptional()
-    number?: string;
+    number: string;
 
     @IsNumber()
-    @IsOptional()
-    exp_month?: number;
+    exp_month: number;
 
-    @IsString()
     @IsNumber()
-    exp_year?: number;
+    exp_year: number;
 
     @IsString()
-    @IsOptional()
-    cvc?: string;
-
+    cvc: string;
+}
+export class CreateStripeCardTokenPaymentMethodDto {
     @IsString()
     @IsOptional()
-    customer_id?: string;
+    id?: string;
+
+    @IsString()
+    type: PaymentMethodType;
+
+    @ValidateNested()
+    @Type(() => CardDto)
+    card: CardDto;
 }
